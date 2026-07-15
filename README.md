@@ -1,51 +1,98 @@
-# Welcome to your Convex + Next.js + Clerk app
+# Ledger Shark
 
-This is a [Convex](https://convex.dev/) project created with [`npm create convex`](https://www.npmjs.com/package/create-convex).
+Accounts receivable for teams — manage clients, invoices, and cash flow. A
+multi-tenant B2B app built on **Clerk** (organizations, RBAC, billing),
+**Convex** (org-scoped realtime backend), and **Next.js + shadcn/ui**.
 
-After the initial setup (<2 minutes) you'll have a working full-stack app using:
+## Stack
 
-- Convex as your backend (database, server logic)
-- [React](https://react.dev/) as your frontend (web page interactivity)
-- [Next.js](https://nextjs.org/) for optimized web hosting and page routing
-- [Tailwind](https://tailwindcss.com/) for building great looking accessible UI
-- [Clerk](https://clerk.com/) for authentication
+- **Convex** — database + server functions, org-scoped by construction
+- **Clerk** — auth, Organizations, custom roles/permissions, Billing
+- **Next.js (App Router)** — hosting + routing
+- **shadcn/ui** (`radix-nova`) + Tailwind — UI
+- **react-hook-form + zod** — forms & validation
+- **Vitest + convex-test** — cross-org isolation tests
 
-## Get started
+## Getting started
 
-If you just cloned this codebase and didn't use `npm create convex`, run:
-
-```
-npm install
-npm run dev
-```
-
-If you're reading this README on GitHub and want to use this template, run:
-
-```
-npm create convex@latest -- -t nextjs-clerk
+```bash
+pnpm install
+pnpm dev        # runs Next.js + `convex dev` together
 ```
 
-Then:
+`pnpm dev` starts the app and the Convex dev deployment. Run the isolation test
+suite with:
 
-1. Open your app. There should be a "Claim your application" button from Clerk in the bottom right of your app.
-2. Follow the steps to claim your application and link it to this app.
-3. Follow step 3 in the [Convex Clerk onboarding guide](https://docs.convex.dev/auth/clerk#get-started) to create a Convex JWT template.
-4. Uncomment the Clerk provider in `convex/auth.config.ts`
-5. Paste the Issuer URL as `CLERK_JWT_ISSUER_DOMAIN` to your dev deployment environment variable settings on the Convex dashboard (see [docs](https://docs.convex.dev/auth/clerk#configuring-dev-and-prod-instances))
+```bash
+pnpm test
+```
 
-If you want to sync Clerk user data via webhooks, check out this [example repo](https://github.com/thomasballinger/convex-clerk-users-table/).
+## Environment variables
 
-## Learn more
+Local (`.env.local`):
 
-To learn more about developing your project with Convex, check out:
+```bash
+NEXT_PUBLIC_CONVEX_URL=...
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=...
+CLERK_SECRET_KEY=...
 
-- The [Tour of Convex](https://docs.convex.dev/get-started) for a thorough introduction to Convex principles.
-- The rest of [Convex docs](https://docs.convex.dev/) to learn about all Convex features.
-- [Stack](https://stack.convex.dev/) for in-depth articles on advanced topics.
+# Clerk routing
+NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
+NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
+NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/app
+NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=/app
 
-## Join the community
+# Clerk webhook signature verification (from the Clerk Dashboard endpoint)
+CLERK_WEBHOOK_SIGNING_SECRET=whsec_...
 
-Join thousands of developers building full-stack apps with Convex:
+# Shared secret guarding the Convex billing sync mutation. Must match the
+# value set on the Convex deployment (see below).
+BILLING_WEBHOOK_SECRET=...
+```
 
-- Join the [Convex Discord community](https://convex.dev/community) to get help in real-time.
-- Follow [Convex on GitHub](https://github.com/get-convex/), star and contribute to the open-source implementation of Convex.
+On the **Convex deployment** (Dashboard → Settings → Environment Variables, or
+`npx convex env set`):
+
+```bash
+CLERK_JWT_ISSUER_DOMAIN=https://<your-clerk-subdomain>.clerk.accounts.dev
+BILLING_WEBHOOK_SECRET=...   # same value as in .env.local
+```
+
+## Clerk Dashboard / CLI setup (one-time)
+
+`clerk doctor` and `clerk config pull` confirm the **LedgerShark** Linked Dev
+instance already has Organizations (membership required / force selection),
+custom roles (`org:owner` creator, `org:accountant` default), org Billing, and
+plans (`free` / `pro` / `business`) with the feature slugs in
+[`lib/billing-features.ts`](lib/billing-features.ts).
+
+If you recreate the Clerk app, redo these:
+
+1. **Organizations** — `npx clerk@latest enable orgs --force-selection`
+2. **Roles & permissions** — `org:owner` / `org:accountant` / `org:viewer` with
+   `org:clients:*`, `org:invoices:*`, `org:reports:read`; Creator = `org:owner`.
+   The app also falls back to Clerk defaults (`org:admin` → owner,
+   `org:member` → accountant).
+3. **Convex JWT template** — include `org_id`, `org_role`, `org_permissions`.
+4. **Billing** — `npx clerk@latest enable billing --for orgs`
+5. **Organization Plans** — `free` / `pro` / `business` + feature slugs above.
+6. **Webhook** — `/api/webhooks/clerk` for `subscription.*` /
+   `subscriptionItem.*`; set `CLERK_WEBHOOK_SIGNING_SECRET`.
+
+Free-tier soft limits (5 clients, 10 invoices/month) are enforced server-side in
+Convex regardless of Clerk plan sync.
+
+## Security model
+
+Cross-org isolation is a hard invariant: `orgId` is derived only from the
+verified Clerk JWT (never from client args), every domain function goes through
+the `authedOrgQuery` / `authedOrgMutation` wrappers, single-doc reads use
+`getOrgDocOrThrow`, and relational writes use `assertSameOrg`. This is verified
+by the two-org isolation suite in `convex/*.test.ts` (`pnpm test`).
+
+## Project structure
+
+- `app/` — Next.js routes (`/`, auth, `/app/*` dashboard, `/api/webhooks/clerk`)
+- `components/` — app shell + feature UI (`clients/`, `invoices/`, `billing/`)
+- `convex/` — schema, org-scoped functions, `lib/` auth + billing helpers, tests
+- `lib/`, `hooks/` — client helpers (formatting, permissions, billing constants)

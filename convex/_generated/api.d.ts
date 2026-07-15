@@ -8,7 +8,14 @@
  * @module
  */
 
-import type * as myFunctions from "../myFunctions.js";
+import type * as billing from "../billing.js";
+import type * as clients from "../clients.js";
+import type * as dashboard from "../dashboard.js";
+import type * as invoices from "../invoices.js";
+import type * as lib_auth from "../lib/auth.js";
+import type * as lib_billing from "../lib/billing.js";
+import type * as lib_orgFunctions from "../lib/orgFunctions.js";
+import type * as lib_rls from "../lib/rls.js";
 
 import type {
   ApiFromModules,
@@ -17,7 +24,14 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  myFunctions: typeof myFunctions;
+  billing: typeof billing;
+  clients: typeof clients;
+  dashboard: typeof dashboard;
+  invoices: typeof invoices;
+  "lib/auth": typeof lib_auth;
+  "lib/billing": typeof lib_billing;
+  "lib/orgFunctions": typeof lib_orgFunctions;
+  "lib/rls": typeof lib_rls;
 }>;
 
 /**
